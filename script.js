@@ -14,6 +14,46 @@ function startScan() {
     });
 }
 
+function scanImage() {
+    let input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function (event) {
+        let file = event.target.files[0];
+        let fileReader = new FileReader();
+        fileReader.readAsDataURL(file);
+        fileReader.onloadend = function (event) {
+            let base64Data = event.target.result;
+            let image = new Image();
+            image.src = base64Data;
+            image.onload = function () {
+                elemScanCamera.width = image.width;
+                elemScanCamera.height = image.height;
+                canvasScanCamera.drawImage(image, 0, 0, image.width, image.height);
+                let imageData = canvasScanCamera.getImageData(0, 0, image.width, image.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+                if (code) {
+                    try {
+                        const urlParams = parseUrl(code.data);
+                        const ciphertextKey = CryptoJS.MD5(urlParams["_k"] + urlParams["_d"]).toString();
+                        console.debug('aes decrypt:', ciphertextKey);
+                        let decryptedPassword = CryptoJS.AES.decrypt(urlParams["_p"], ciphertextKey).toString(CryptoJS.enc.Utf8);
+                        console.debug('new password:', decryptedPassword);
+                        elemScanResult.innerText = "激活码: " + decryptedPassword;
+                    } catch (e) {
+                        console.error('scan error:', e);
+                    }
+                } else {
+                    elemScanResult.innerText = "图片识别失败";
+                }
+            };
+        }
+    };
+    input.click();
+}
+
 function parseUrl(url) {
     const params = {};
     const urlParts = url.split("?");
@@ -49,8 +89,8 @@ function tick() {
                 elemScanCameraDiv.style.display = 'none';
                 elemControlDiv.style.display = '';
                 return;
-            } catch(e) {
-                console.error('scan error:',e);
+            } catch (e) {
+                console.error('scan error:', e);
             }
         }
     }
